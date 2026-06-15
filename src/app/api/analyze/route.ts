@@ -1,8 +1,11 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, type GenerationConfig } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
 import type { AnalysisResult } from "@/types";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+
+// Vercel の関数タイムアウト上限を 60 秒に（無料プランの最大）
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
@@ -49,7 +52,17 @@ safetyLevel の基準:
 成分表示が見当たらない場合も、見える全てのテキストをrawTextに記録してください。
 必ずJSON形式のみで返し、前後に説明文は不要です。`;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    // thinkingConfig で思考モードを無効化し、レスポンスを高速化（OCR用途では不要）
+    // 旧 SDK の型に thinkingConfig が無いため、オブジェクトごとキャストして素通しさせる
+    const generationConfig = {
+      responseMimeType: "application/json",
+      thinkingConfig: { thinkingBudget: 0 },
+    } as GenerationConfig;
+
+    const model = genAI.getGenerativeModel(
+      { model: "gemini-2.5-flash", generationConfig },
+      { timeout: 55000 }
+    );
 
     const result = await model.generateContent([
       prompt,
