@@ -97,9 +97,10 @@ safetyLevel の基準:
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Analysis error:", error);
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("Analysis error:", msg);
     return NextResponse.json(
-      { error: "分析に失敗しました。もう一度お試しください。" },
+      { error: "分析に失敗しました。もう一度お試しください。", detail: msg },
       { status: 500 }
     );
   }
