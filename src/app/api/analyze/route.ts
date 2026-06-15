@@ -49,7 +49,7 @@ safetyLevel の基準:
 成分表示が見当たらない場合も、見える全てのテキストをrawTextに記録してください。
 必ずJSON形式のみで返し、前後に説明文は不要です。`;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const result = await model.generateContent([
       prompt,
