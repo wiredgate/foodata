@@ -1,8 +1,8 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
 import type { AnalysisResult } from "@/types";
 
-const client = new Anthropic();
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function POST(req: NextRequest) {
   try {
@@ -49,36 +49,20 @@ safetyLevel の基準:
 成分表示が見当たらない場合も、見える全てのテキストをrawTextに記録してください。
 必ずJSON形式のみで返し、前後に説明文は不要です。`;
 
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 4096,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: mediaType,
-                data: imageBase64,
-              },
-            },
-            {
-              type: "text",
-              text: prompt,
-            },
-          ],
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+    const result = await model.generateContent([
+      prompt,
+      {
+        inlineData: {
+          mimeType: mediaType,
+          data: imageBase64,
         },
-      ],
-    });
+      },
+    ]);
 
-    const content = response.content[0];
-    if (content.type !== "text") {
-      throw new Error("予期しないレスポンス形式");
-    }
-
-    const jsonText = content.text.replace(/```json\n?|\n?```/g, "").trim();
+    const text = result.response.text();
+    const jsonText = text.replace(/```json\n?|\n?```/g, "").trim();
     const parsed = JSON.parse(jsonText);
 
     const userAllergenMatches = (userAllergens as string[]).filter((allergen) =>
@@ -89,13 +73,13 @@ safetyLevel の基準:
       )
     );
 
-    const result: AnalysisResult = {
+    const analysisResult: AnalysisResult = {
       ...parsed,
       userAllergenMatches,
       scannedAt: new Date().toISOString(),
     };
 
-    return NextResponse.json(result);
+    return NextResponse.json(analysisResult);
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error("Analysis error:", msg);
