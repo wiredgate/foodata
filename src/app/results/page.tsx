@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AnalysisResult, SafetyLevel } from "@/types";
 import { saveAnalysisResult } from "@/lib/firebase";
@@ -12,13 +12,22 @@ const safetyConfig: Record<SafetyLevel, { label: string; color: string; bg: stri
   unknown: { label: "不明", color: "text-gray-400", bg: "bg-gray-800 border-gray-700" },
 };
 
+type SaveStatus = "idle" | "saving" | "saved" | "error";
+
 export default function ResultsPage() {
   const router = useRouter();
   const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [showRaw, setShowRaw] = useState(false);
+  const savedRef = useRef(false);
+
+  // 公開DBへバックグラウンドで自動保存（結果表示はブロックしない）
+  const save = useCallback((data: AnalysisResult) => {
+    setSaveStatus("saving");
+    saveAnalysisResult(data)
+      .then(() => setSaveStatus("saved"))
+      .catch(() => setSaveStatus("error"));
+  }, []);
 
   useEffect(() => {
     const stored = sessionStorage.getItem("lastResult");
@@ -26,22 +35,14 @@ export default function ResultsPage() {
       router.push("/");
       return;
     }
-    setResult(JSON.parse(stored));
-  }, [router]);
+    const parsed: AnalysisResult = JSON.parse(stored);
+    setResult(parsed);
 
-  const handleSave = async () => {
-    if (!result) return;
-    setSaving(true);
-    setSaveError(null);
-    try {
-      await saveAnalysisResult(result);
-      setSaved(true);
-    } catch {
-      setSaveError("保存に失敗しました。Firebase の設定を確認してください。");
-    } finally {
-      setSaving(false);
+    if (!savedRef.current) {
+      savedRef.current = true;
+      save(parsed);
     }
-  };
+  }, [router, save]);
 
   if (!result) return null;
 
@@ -54,7 +55,15 @@ export default function ResultsPage() {
           ← スキャンに戻る
         </button>
         <span className="text-lg font-bold text-emerald-400">分析結果</span>
-        <div className="w-16" />
+        <div className="w-16 flex justify-end">
+          {saveStatus === "saving" && <span className="text-xs text-gray-500">保存中…</span>}
+          {saveStatus === "saved" && <span className="text-xs text-emerald-400">✓ 保存済み</span>}
+          {saveStatus === "error" && (
+            <button onClick={() => save(result)} className="text-xs text-red-400 underline">
+              保存失敗・再試行
+            </button>
+          )}
+        </div>
       </header>
 
       <div className="flex-1 flex flex-col px-4 py-6 gap-5 max-w-lg mx-auto w-full">
@@ -122,7 +131,7 @@ export default function ResultsPage() {
         </div>
 
         {/* Raw text toggle */}
-        <div>
+        <div className="pb-8">
           <button
             onClick={() => setShowRaw(!showRaw)}
             className="text-xs text-gray-500 hover:text-gray-300 underline"
@@ -133,26 +142,6 @@ export default function ResultsPage() {
             <pre className="mt-2 bg-gray-900 rounded-xl p-3 text-xs text-gray-400 whitespace-pre-wrap overflow-x-auto">
               {result.rawText}
             </pre>
-          )}
-        </div>
-
-        {/* Save to DB */}
-        <div className="pb-8">
-          {saveError && (
-            <p className="text-red-400 text-xs mb-2">{saveError}</p>
-          )}
-          {saved ? (
-            <div className="w-full py-3 rounded-2xl bg-gray-800 text-emerald-400 text-center font-medium">
-              ✓ データベースに保存しました
-            </div>
-          ) : (
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="w-full py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 disabled:bg-gray-700 disabled:text-gray-500 font-bold transition-colors"
-            >
-              {saving ? "保存中..." : "公開DBに保存する"}
-            </button>
           )}
         </div>
       </div>
