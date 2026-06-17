@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AnalysisResult, SafetyLevel } from "@/types";
 import { saveAnalysisResult } from "@/lib/firebase";
+import { Disclaimer } from "@/components/Disclaimer";
 
 const safetyConfig: Record<SafetyLevel, { label: string; color: string; bg: string }> = {
   safe: { label: "安全", color: "text-emerald-400", bg: "bg-emerald-900/30 border-emerald-700" },
@@ -67,6 +68,28 @@ export default function ResultsPage() {
       </header>
 
       <div className="flex-1 flex flex-col px-4 py-6 gap-5 max-w-lg mx-auto w-full">
+        {/* 参考情報・アレルギー注意の明記（常に最上部） */}
+        <Disclaimer source={result.ingredientSource} />
+
+        {/* 成分の出所バッジ */}
+        <div className="flex items-center gap-2 text-xs">
+          {result.ingredientSource === "label" && (
+            <span className="px-2 py-1 rounded-full bg-emerald-900/40 text-emerald-300 border border-emerald-700">
+              📋 ラベルから読み取り
+            </span>
+          )}
+          {result.ingredientSource === "estimated" && (
+            <span className="px-2 py-1 rounded-full bg-amber-900/40 text-amber-300 border border-amber-700">
+              🔎 商品名から推定（実物と異なる場合あり）
+            </span>
+          )}
+          {result.ingredientSource === "unknown" && (
+            <span className="px-2 py-1 rounded-full bg-gray-800 text-gray-400 border border-gray-700">
+              成分を特定できませんでした
+            </span>
+          )}
+        </div>
+
         {/* Allergen Alert */}
         {result.userAllergenMatches.length > 0 && (
           <div className="bg-red-900/50 border-2 border-red-500 rounded-2xl px-4 py-4">

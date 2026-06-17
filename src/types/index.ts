@@ -8,6 +8,9 @@ export interface Ingredient {
   allergenTypes: string[];
 }
 
+// 成分の出所: label=ラベルから読取 / estimated=商品名から推定 / unknown=不明
+export type IngredientSource = "label" | "estimated" | "unknown";
+
 export interface AnalysisResult {
   id?: string;
   productName: string;
@@ -19,6 +22,9 @@ export interface AnalysisResult {
   imageUrl?: string;
   scannedAt: string;
   userAllergenMatches: string[];
+  // 商品をAIの知識で特定できたか / 成分の出所
+  productIdentified?: boolean;
+  ingredientSource?: IngredientSource;
 }
 
 export interface UserProfile {

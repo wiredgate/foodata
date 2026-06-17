@@ -3,6 +3,7 @@
 import { useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import type { AnalysisResult } from "@/types";
+import { Disclaimer } from "@/components/Disclaimer";
 
 export default function ScanPage() {
   const router = useRouter();
@@ -76,6 +77,8 @@ export default function ScanPage() {
           <h1 className="text-2xl font-bold mb-1">成分スキャン</h1>
           <p className="text-gray-400 text-sm">撮影するだけで自動で分析します</p>
         </div>
+
+        <Disclaimer />
 
         <div
           onClick={() => !loading && fileInputRef.current?.click()}

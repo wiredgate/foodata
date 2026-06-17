@@ -21,13 +21,22 @@ export async function POST(req: NextRequest) {
         ? `ユーザーは以下のアレルゲンに注意が必要です: ${userAllergens.join("、")}。これらが成分に含まれる場合は必ず警告してください。`
         : "";
 
-    const prompt = `あなたは食品・化粧品・医薬品・洗剤・日用品など、あらゆる製品の成分分析の専門家です。この画像に写っている原材料表示・成分表示・成分リストを読み取り、以下のJSON形式で返してください。
+    const prompt = `あなたは食品・化粧品・医薬品・洗剤・日用品など、あらゆる製品の成分分析の専門家です。画像を見て、その製品の成分を分析し、以下のJSON形式で返してください。
 
 ${allergenInstruction}
 
+【成分の判定手順】
+1. 画像に原材料表示・成分表示が写っていて読み取れる場合 → そのラベルの内容を成分とする。ingredientSource は "label"。
+2. ラベルが読み取れないが、写っている製品（ブランド名・商品名・パッケージ）から具体的な商品を特定できる場合 → 一般に知られているその商品の代表的な成分を記載する。ingredientSource は "estimated"、productIdentified は true。
+3. ラベルも読めず商品も特定できない場合 → ingredients は空配列、ingredientSource は "unknown"、productIdentified は false。
+
+重要: "estimated"（推定）の場合、実際の製品とは成分が異なる可能性が高いことを踏まえ、断定を避け、summary と warnings に「商品名から推定したもので実物と異なる場合がある」旨を必ず含めること。アレルゲンについても推定であることを明記すること。
+
 返すJSONの形式:
 {
-  "productName": "商品名（読み取れる場合）",
+  "productName": "商品名（特定できた場合。ブランド名も含める）",
+  "productIdentified": true|false,
+  "ingredientSource": "label|estimated|unknown",
   "rawText": "画像から読み取った全テキスト（できる限り全て）",
   "ingredients": [
     {
@@ -49,7 +58,7 @@ safetyLevel の基準:
 - danger: 発がん性・毒性・強いアレルゲン性が報告されている
 - unknown: 情報が不十分
 
-成分表示が見当たらない場合も、見える全てのテキストをrawTextに記録してください。
+見える全てのテキストを rawText に記録してください。
 必ずJSON形式のみで返し、前後に説明文は不要です。`;
 
     // thinkingConfig で思考モードを無効化し、レスポンスを高速化（OCR用途では不要）
@@ -88,6 +97,8 @@ safetyLevel の基準:
 
     const analysisResult: AnalysisResult = {
       ...parsed,
+      productIdentified: parsed.productIdentified ?? false,
+      ingredientSource: parsed.ingredientSource ?? "unknown",
       userAllergenMatches,
       scannedAt: new Date().toISOString(),
     };
