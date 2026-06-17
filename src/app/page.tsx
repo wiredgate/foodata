@@ -4,9 +4,11 @@ import { useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import type { AnalysisResult } from "@/types";
 import { Disclaimer } from "@/components/Disclaimer";
+import { useAuth } from "@/components/AuthProvider";
 
 export default function ScanPage() {
   const router = useRouter();
+  const { user, loading: authLoading, signIn, signOut } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -59,18 +61,67 @@ export default function ScanPage() {
     [runAnalysis]
   );
 
+  const Header = (
+    <header className="flex items-center justify-between px-4 py-4 border-b border-gray-800">
+      <div className="flex items-center gap-2">
+        <span className="text-2xl">🔬</span>
+        <span className="text-xl font-bold text-emerald-400">Foodata</span>
+      </div>
+      <nav className="flex items-center gap-3 text-sm">
+        <a href="/db" className="text-gray-400 hover:text-white">DB</a>
+        {user && (
+          <>
+            <a href="/profile" className="text-gray-400 hover:text-white">プロフィール</a>
+            <button onClick={() => signOut()} className="text-gray-500 hover:text-white">
+              ログアウト
+            </button>
+          </>
+        )}
+      </nav>
+    </header>
+  );
+
+  // 認証状態の判定中
+  if (authLoading) {
+    return (
+      <main className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
+        <span className="animate-spin text-3xl">⏳</span>
+      </main>
+    );
+  }
+
+  // 未ログイン → ログイン画面（投稿にはログイン必須）
+  if (!user) {
+    return (
+      <main className="min-h-screen bg-gray-950 text-white flex flex-col">
+        {Header}
+        <div className="flex-1 flex flex-col items-center justify-center px-6 gap-6 max-w-md mx-auto w-full text-center">
+          <span className="text-6xl">🔬</span>
+          <div>
+            <h1 className="text-2xl font-bold mb-2">Foodata にログイン</h1>
+            <p className="text-gray-400 text-sm">
+              成分をスキャンして公開データベースに投稿するには、ログインが必要です。
+            </p>
+          </div>
+          <button
+            onClick={() => signIn().catch(() => setError("ログインに失敗しました"))}
+            className="w-full py-4 rounded-2xl bg-white text-gray-900 font-bold hover:bg-gray-100 transition-colors flex items-center justify-center gap-2"
+          >
+            <span>Google でログイン</span>
+          </button>
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+          <p className="text-xs text-gray-600">
+            投稿は本人に紐付けて記録されます。虚偽情報の投稿は通報・利用制限の対象になります。
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  // ログイン済み → スキャン画面
   return (
     <main className="min-h-screen bg-gray-950 text-white flex flex-col">
-      <header className="flex items-center justify-between px-4 py-4 border-b border-gray-800">
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">🔬</span>
-          <span className="text-xl font-bold text-emerald-400">Foodata</span>
-        </div>
-        <nav className="flex gap-3 text-sm">
-          <a href="/db" className="text-gray-400 hover:text-white">DB</a>
-          <a href="/profile" className="text-gray-400 hover:text-white">プロフィール</a>
-        </nav>
-      </header>
+      {Header}
 
       <div className="flex-1 flex flex-col items-center px-4 py-8 gap-6 max-w-lg mx-auto w-full">
         <div className="text-center">

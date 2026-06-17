@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AnalysisResult, SafetyLevel } from "@/types";
-import { getRecentScans } from "@/lib/firebase";
+import { getRecentScans, deleteScan, reportScan } from "@/lib/firebase";
+import { useAuth } from "@/components/AuthProvider";
 
 const safetyColors: Record<SafetyLevel, string> = {
   safe: "text-emerald-400",
@@ -28,11 +29,14 @@ const safetyLabels: Record<SafetyLevel, string> = {
 
 export default function DBPage() {
   const router = useRouter();
+  const { user, signIn } = useAuth();
   const [scans, setScans] = useState<AnalysisResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [reported, setReported] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
     getRecentScans(500)
@@ -40,6 +44,43 @@ export default function DBPage() {
       .catch(() => setError("データの取得に失敗しました"))
       .finally(() => setLoading(false));
   }, []);
+
+  const handleDelete = async (scan: AnalysisResult) => {
+    if (!scan.id) return;
+    if (!window.confirm("この投稿を削除しますか？（元に戻せません）")) return;
+    setBusy(scan.id);
+    try {
+      await deleteScan(scan.id);
+      setScans((prev) => prev.filter((s) => s.id !== scan.id));
+    } catch {
+      alert("削除に失敗しました。自分の投稿のみ削除できます。");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleReport = async (scan: AnalysisResult) => {
+    if (!user) {
+      alert("通報するにはログインが必要です。");
+      signIn().catch(() => {});
+      return;
+    }
+    if (!scan.id) return;
+    const reason = window.prompt(
+      "通報理由を入力してください（虚偽・捏造の疑いなど）",
+      "虚偽・捏造の疑い"
+    );
+    if (reason === null) return;
+    setBusy(scan.id);
+    try {
+      await reportScan(scan, reason || "（理由未記入）");
+      setReported((prev) => new Set(prev).add(scan.id!));
+    } catch {
+      alert("通報に失敗しました。");
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const filtered = scans.filter(
     (s) =>
@@ -84,6 +125,8 @@ export default function DBPage() {
           {filtered.map((scan, i) => {
             const key = scan.id ?? String(i);
             const isOpen = expanded === key;
+            const isMine = !!user && scan.ownerId === user.uid;
+            const isReported = scan.id ? reported.has(scan.id) : false;
             return (
               <div
                 key={key}
@@ -95,6 +138,8 @@ export default function DBPage() {
                     <p className="font-medium text-sm">{scan.productName || "商品名不明"}</p>
                     <p className="text-xs text-gray-500 mt-0.5">
                       {new Date(scan.scannedAt).toLocaleString("ja-JP")}
+                      {scan.ownerName ? ` ・ ${scan.ownerName}` : ""}
+                      {isMine ? "（あなた）" : ""}
                     </p>
                   </div>
                   <span className={`text-xs font-bold ${safetyColors[scan.overallSafety]}`}>
@@ -126,7 +171,6 @@ export default function DBPage() {
 
                 {isOpen && (
                   <div className="mt-3 flex flex-col gap-4">
-                    {/* アレルゲン検出 */}
                     {scan.userAllergenMatches?.length > 0 && (
                       <div className="bg-red-900/40 border border-red-700 rounded-xl px-3 py-2">
                         <p className="text-red-300 text-xs font-bold">
@@ -135,7 +179,6 @@ export default function DBPage() {
                       </div>
                     )}
 
-                    {/* 注意事項 */}
                     {scan.warnings?.length > 0 && (
                       <div className="bg-yellow-900/20 border border-yellow-800 rounded-xl px-3 py-2">
                         <p className="text-yellow-400 text-xs font-medium mb-1">注意事項</p>
@@ -147,7 +190,6 @@ export default function DBPage() {
                       </div>
                     )}
 
-                    {/* 全成分 */}
                     <div>
                       <p className="text-xs text-gray-400 mb-2">成分一覧（{scan.ingredients?.length ?? 0}件）</p>
                       <div className="space-y-1.5">
@@ -172,7 +214,6 @@ export default function DBPage() {
                       </div>
                     </div>
 
-                    {/* 生テキスト */}
                     {scan.rawText && (
                       <div>
                         <p className="text-xs text-gray-400 mb-1">読み取りテキスト</p>
@@ -181,6 +222,34 @@ export default function DBPage() {
                         </pre>
                       </div>
                     )}
+
+                    {/* 操作: 通報 / 自分の投稿は削除 */}
+                    <div
+                      className="flex items-center gap-3 pt-1"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {isReported ? (
+                        <span className="text-xs text-gray-500">通報しました（運営が確認します）</span>
+                      ) : (
+                        <button
+                          onClick={() => handleReport(scan)}
+                          disabled={busy === scan.id}
+                          className="text-xs px-3 py-1.5 rounded-full border border-amber-700 text-amber-300 hover:bg-amber-900/30 disabled:opacity-50"
+                        >
+                          🚩 通報する
+                        </button>
+                      )}
+
+                      {isMine && (
+                        <button
+                          onClick={() => handleDelete(scan)}
+                          disabled={busy === scan.id}
+                          className="text-xs px-3 py-1.5 rounded-full border border-red-700 text-red-300 hover:bg-red-900/30 disabled:opacity-50"
+                        >
+                          🗑 削除する
+                        </button>
+                      )}
+                    </div>
 
                     <p className="text-[10px] text-gray-600 text-center">タップで閉じる</p>
                   </div>

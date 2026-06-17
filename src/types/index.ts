@@ -25,6 +25,9 @@ export interface AnalysisResult {
   // 商品をAIの知識で特定できたか / 成分の出所
   productIdentified?: boolean;
   ingredientSource?: IngredientSource;
+  // 投稿者（ログインユーザー）
+  ownerId?: string;
+  ownerName?: string;
 }
 
 export interface UserProfile {
