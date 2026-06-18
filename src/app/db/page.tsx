@@ -85,6 +85,7 @@ export default function DBPage() {
   const filtered = scans.filter(
     (s) =>
       s.productName?.toLowerCase().includes(search.toLowerCase()) ||
+      s.manufacturer?.toLowerCase().includes(search.toLowerCase()) ||
       s.ingredients?.some((i) => i.name.toLowerCase().includes(search.toLowerCase()))
   );
 
@@ -135,6 +136,9 @@ export default function DBPage() {
               >
                 <div className="flex items-start justify-between mb-2">
                   <div>
+                    {scan.manufacturer && (
+                      <p className="text-[11px] text-gray-500">{scan.manufacturer}</p>
+                    )}
                     <p className="font-medium text-sm">{scan.productName || "商品名不明"}</p>
                     <p className="text-xs text-gray-500 mt-0.5">
                       {new Date(scan.scannedAt).toLocaleString("ja-JP")}

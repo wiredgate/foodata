@@ -18,14 +18,20 @@ type SaveStatus = "idle" | "saving" | "saved" | "error";
 export default function ResultsPage() {
   const router = useRouter();
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [productName, setProductName] = useState("");
+  const [manufacturer, setManufacturer] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [showRaw, setShowRaw] = useState(false);
   const savedRef = useRef(false);
 
-  // 公開DBへバックグラウンドで自動保存（結果表示はブロックしない）
-  const save = useCallback((data: AnalysisResult) => {
+  // 会社名・商品名を含めて公開DBへ保存
+  const save = useCallback((data: AnalysisResult, pName: string, mfr: string) => {
     setSaveStatus("saving");
-    saveAnalysisResult(data)
+    saveAnalysisResult({
+      ...data,
+      productName: pName.trim(),
+      manufacturer: mfr.trim(),
+    })
       .then(() => setSaveStatus("saved"))
       .catch(() => setSaveStatus("error"));
   }, []);
@@ -38,16 +44,28 @@ export default function ResultsPage() {
     }
     const parsed: AnalysisResult = JSON.parse(stored);
     setResult(parsed);
+    const pName = parsed.productName?.trim() ?? "";
+    const mfr = parsed.manufacturer?.trim() ?? "";
+    setProductName(pName);
+    setManufacturer(mfr);
 
-    if (!savedRef.current) {
+    // 会社名と商品名が両方揃っているときだけ自動保存。欠けていれば保存せず入力を促す
+    if (pName && mfr && !savedRef.current) {
       savedRef.current = true;
-      save(parsed);
+      save(parsed, pName, mfr);
     }
   }, [router, save]);
 
   if (!result) return null;
 
   const overallCfg = safetyConfig[result.overallSafety];
+  const complete = productName.trim() !== "" && manufacturer.trim() !== "";
+
+  const handleManualSave = () => {
+    if (!complete) return;
+    savedRef.current = true;
+    save(result, productName, manufacturer);
+  };
 
   return (
     <main className="min-h-screen bg-gray-950 text-white flex flex-col">
@@ -56,15 +74,7 @@ export default function ResultsPage() {
           ← スキャンに戻る
         </button>
         <span className="text-lg font-bold text-emerald-400">分析結果</span>
-        <div className="w-16 flex justify-end">
-          {saveStatus === "saving" && <span className="text-xs text-gray-500">保存中…</span>}
-          {saveStatus === "saved" && <span className="text-xs text-emerald-400">✓ 保存済み</span>}
-          {saveStatus === "error" && (
-            <button onClick={() => save(result)} className="text-xs text-red-400 underline">
-              保存失敗・再試行
-            </button>
-          )}
-        </div>
+        <div className="w-16" />
       </header>
 
       <div className="flex-1 flex flex-col px-4 py-6 gap-5 max-w-lg mx-auto w-full">
@@ -90,6 +100,66 @@ export default function ResultsPage() {
           )}
         </div>
 
+        {/* 会社名・商品名（DB登録に必須） */}
+        <div className="rounded-2xl border border-gray-700 bg-gray-900 px-4 py-4 flex flex-col gap-3">
+          <p className="text-sm font-bold">登録情報（会社名・商品名）</p>
+
+          <label className="text-xs text-gray-400 flex flex-col gap-1">
+            会社名・メーカー
+            <input
+              value={manufacturer}
+              onChange={(e) => setManufacturer(e.target.value)}
+              placeholder="例: ○○食品株式会社"
+              disabled={saveStatus === "saved"}
+              className="bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-600 disabled:opacity-60"
+            />
+          </label>
+
+          <label className="text-xs text-gray-400 flex flex-col gap-1">
+            商品名
+            <input
+              value={productName}
+              onChange={(e) => setProductName(e.target.value)}
+              placeholder="例: ○○クッキー"
+              disabled={saveStatus === "saved"}
+              className="bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-600 disabled:opacity-60"
+            />
+          </label>
+
+          {saveStatus === "saved" ? (
+            <p className="text-emerald-400 text-sm font-medium">✓ 公開DBに保存しました</p>
+          ) : saveStatus === "saving" ? (
+            <p className="text-gray-400 text-sm">保存中…</p>
+          ) : (
+            <>
+              {!complete && (
+                <p className="text-amber-300 text-xs leading-relaxed">
+                  ⚠️ 公開DBに登録するには<strong>会社名</strong>と<strong>商品名</strong>の両方が必要です。
+                  読み取れなかった部分を入力するか、その情報が写るように撮り直してください。
+                </p>
+              )}
+              {saveStatus === "error" && (
+                <p className="text-red-400 text-xs">保存に失敗しました。もう一度お試しください。</p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleManualSave}
+                  disabled={!complete}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:bg-gray-700 disabled:text-gray-500 font-bold text-sm transition-colors"
+                >
+                  この内容で公開DBに保存
+                </button>
+                <button
+                  onClick={() => router.push("/")}
+                  className="px-4 py-2.5 rounded-xl border border-gray-700 text-gray-300 hover:text-white text-sm"
+                >
+                  撮り直す
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
         {/* Allergen Alert */}
         {result.userAllergenMatches.length > 0 && (
           <div className="bg-red-900/50 border-2 border-red-500 rounded-2xl px-4 py-4">
@@ -108,14 +178,6 @@ export default function ResultsPage() {
           </div>
           <p className="text-sm text-gray-300">{result.summary}</p>
         </div>
-
-        {/* Product Name */}
-        {result.productName && (
-          <div>
-            <p className="text-xs text-gray-500 mb-1">商品名</p>
-            <p className="font-medium">{result.productName}</p>
-          </div>
-        )}
 
         {/* Warnings */}
         {result.warnings.length > 0 && (

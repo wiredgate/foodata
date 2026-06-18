@@ -14,6 +14,7 @@ export type IngredientSource = "label" | "estimated" | "unknown";
 export interface AnalysisResult {
   id?: string;
   productName: string;
+  manufacturer: string;
   rawText: string;
   ingredients: Ingredient[];
   overallSafety: SafetyLevel;

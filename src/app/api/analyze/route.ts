@@ -32,9 +32,12 @@ ${allergenInstruction}
 
 重要: "estimated"（推定）の場合、実際の製品とは成分が異なる可能性が高いことを踏まえ、断定を避け、summary と warnings に「商品名から推定したもので実物と異なる場合がある」旨を必ず含めること。アレルゲンについても推定であることを明記すること。
 
+会社名（メーカー・製造者・販売者）も必ず探してください。ラベルに「製造者」「販売者」「○○株式会社」等があればそれを、無ければ商品やブランドから一般に知られている製造・販売会社名を推定してください。不明な場合は空文字にしてください。
+
 返すJSONの形式:
 {
   "productName": "商品名（特定できた場合。ブランド名も含める）",
+  "manufacturer": "会社名・メーカー名（製造者/販売者。特定・推定できた場合。不明なら空文字）",
   "productIdentified": true|false,
   "ingredientSource": "label|estimated|unknown",
   "rawText": "画像から読み取った全テキスト（できる限り全て）",
@@ -97,6 +100,8 @@ safetyLevel の基準:
 
     const analysisResult: AnalysisResult = {
       ...parsed,
+      productName: parsed.productName ?? "",
+      manufacturer: parsed.manufacturer ?? "",
       productIdentified: parsed.productIdentified ?? false,
       ingredientSource: parsed.ingredientSource ?? "unknown",
       userAllergenMatches,
