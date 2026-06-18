@@ -8,7 +8,7 @@ import { useAuth } from "@/components/AuthProvider";
 
 export default function ScanPage() {
   const router = useRouter();
-  const { user, loading: authLoading, signIn, signOut } = useAuth();
+  const { user, loading: authLoading, isAdmin, signIn, signOut } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -71,6 +71,9 @@ export default function ScanPage() {
         <a href="/db" className="text-gray-400 hover:text-white">DB</a>
         {user && (
           <>
+            {isAdmin && (
+              <a href="/admin" className="text-amber-400 hover:text-amber-300">管理</a>
+            )}
             <a href="/profile" className="text-gray-400 hover:text-white">プロフィール</a>
             <button onClick={() => signOut()} className="text-gray-500 hover:text-white">
               ログアウト

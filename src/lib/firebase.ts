@@ -3,7 +3,9 @@ import {
   getFirestore,
   collection,
   addDoc,
+  getDoc,
   getDocs,
+  setDoc,
   deleteDoc,
   doc,
   query,
@@ -19,7 +21,7 @@ import {
   onAuthStateChanged,
   type User,
 } from "firebase/auth";
-import type { AnalysisResult } from "@/types";
+import type { AnalysisResult, Report, BannedUser } from "@/types";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -106,4 +108,62 @@ export async function reportScan(
     reporterName: user.displayName ?? "名称未設定",
     createdAt: Timestamp.now(),
   });
+}
+
+// ---- 管理者機能 ----
+
+// 自分が管理者か判定（admins/{uid} の有無）
+export async function checkIsAdmin(uid: string): Promise<boolean> {
+  try {
+    const snap = await getDoc(doc(db, "admins", uid));
+    return snap.exists();
+  } catch {
+    return false;
+  }
+}
+
+// 通報一覧（管理者のみ。ルールで強制）
+export async function getReports(): Promise<Report[]> {
+  const q = query(collection(db, "reports"), orderBy("createdAt", "desc"), limit(200));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => {
+    const data = d.data();
+    return {
+      id: d.id,
+      ...data,
+      createdAt:
+        data.createdAt instanceof Timestamp
+          ? data.createdAt.toDate().toISOString()
+          : data.createdAt,
+    };
+  }) as Report[];
+}
+
+// 通報を処理済みとして削除
+export async function deleteReport(reportId: string): Promise<void> {
+  await deleteDoc(doc(db, "reports", reportId));
+}
+
+// ユーザーをBAN（以後投稿不可。ルールで強制）
+export async function banUser(
+  uid: string,
+  info: { name?: string | null; reason?: string | null } = {}
+): Promise<void> {
+  await setDoc(doc(db, "bannedUsers", uid), {
+    name: info.name ?? null,
+    reason: info.reason ?? null,
+    bannedAt: Timestamp.now(),
+    bannedBy: auth.currentUser?.uid ?? null,
+  });
+}
+
+// BAN解除
+export async function unbanUser(uid: string): Promise<void> {
+  await deleteDoc(doc(db, "bannedUsers", uid));
+}
+
+// BAN中ユーザー一覧
+export async function getBannedUsers(): Promise<BannedUser[]> {
+  const snap = await getDocs(collection(db, "bannedUsers"));
+  return snap.docs.map((d) => ({ uid: d.id, ...d.data() })) as BannedUser[];
 }

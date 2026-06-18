@@ -34,6 +34,25 @@ export interface UserProfile {
   allergens: string[];
 }
 
+// 通報（管理者が確認する）
+export interface Report {
+  id?: string;
+  scanId: string | null;
+  scanOwnerId: string | null;
+  productName: string | null;
+  reason: string;
+  reporterId: string;
+  reporterName: string;
+  createdAt: string;
+}
+
+// BANされたユーザー
+export interface BannedUser {
+  uid: string;
+  name?: string | null;
+  reason?: string | null;
+}
+
 export const COMMON_ALLERGENS = [
   "卵",
   "乳",
