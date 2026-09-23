@@ -6,6 +6,41 @@ import type { AnalysisResult } from "@/types";
 import { Disclaimer } from "@/components/Disclaimer";
 import { useAuth } from "@/components/AuthProvider";
 
+// スマホの高解像度写真はそのままだとVercelの送信上限(約4.5MB)を超えて弾かれる。
+// 送信前に長辺1600pxへ縮小しJPEG圧縮する（成分表示の文字は十分読める）。
+function compressImage(
+  file: File,
+  maxDim = 1600,
+  quality = 0.8
+): Promise<{ dataUrl: string; base64: string; mediaType: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("画像の処理に失敗しました"));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        resolve({ dataUrl, base64: dataUrl.split(",")[1], mediaType: "image/jpeg" });
+      };
+      img.onerror = () => reject(new Error("画像を読み込めませんでした"));
+      img.src = ev.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error("画像を読み込めませんでした"));
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function ScanPage() {
   const router = useRouter();
   const { user, loading: authLoading, isAdmin, signIn, signOut } = useAuth();
@@ -43,20 +78,19 @@ export default function ScanPage() {
   );
 
   const handleFileChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-
-      const mediaType = file.type || "image/jpeg";
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const dataUrl = ev.target?.result as string;
-        setPreview(dataUrl);
-        const base64 = dataUrl.split(",")[1];
-        runAnalysis(base64, mediaType);
-      };
-      reader.readAsDataURL(file);
       setError(null);
+      setLoading(true);
+      try {
+        const { dataUrl, base64, mediaType } = await compressImage(file);
+        setPreview(dataUrl);
+        runAnalysis(base64, mediaType);
+      } catch {
+        setError("画像を読み込めませんでした。別の写真でお試しください。");
+        setLoading(false);
+      }
     },
     [runAnalysis]
   );
